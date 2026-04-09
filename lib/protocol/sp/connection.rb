@@ -56,7 +56,8 @@ module Protocol
       # @return [void]
       def send_message(body)
         @mutex.synchronize do
-          @io.write(Codec::Frame.encode(body))
+          @io.write([body.bytesize].pack("Q>"))
+          @io.write(body)
           @io.flush
         end
       end
@@ -65,11 +66,16 @@ module Protocol
       # Writes one message to the buffer without flushing.
       # Call {#flush} after batching writes.
       #
+      # Two writes — header then body — into the buffered IO; avoids
+      # the per-message intermediate String allocation that
+      # {Codec::Frame.encode} would otherwise produce.
+      #
       # @param body [String]
       # @return [void]
       def write_message(body)
         @mutex.synchronize do
-          @io.write(Codec::Frame.encode(body))
+          @io.write([body.bytesize].pack("Q>"))
+          @io.write(body)
         end
       end
 
@@ -98,12 +104,13 @@ module Protocol
 
       # Receives one message body.
       #
-      # @return [String] frozen binary body
+      # @return [String] binary body (NOT frozen — let callers freeze if
+      #   they want, the freeze cost shows up in hot loops)
       # @raise [EOFError] if connection is closed
       def receive_message
         frame = Codec::Frame.read_from(@io, max_message_size: @max_message_size)
         touch_heartbeat
-        frame.body.freeze
+        frame.body
       rescue Error
         close
         raise
