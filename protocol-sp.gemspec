@@ -17,5 +17,5 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = ">= 3.3"
 
-  s.files = Dir["lib/**/*.rb", "README.md", "LICENSE"]
+  s.files = Dir["lib/**/*.rb", "README.md", "CHANGELOG.md", "LICENSE"]
 end
