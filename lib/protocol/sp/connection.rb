@@ -10,6 +10,13 @@ module Protocol
     # binary bodies framed by an 8-byte big-endian length.
     #
     class Connection
+      # SP/IPC data messages are prefixed with a 1-byte message type.
+      # 0x01 = user message. 0x00 is reserved in nng for control frames
+      # (keepalive) that we don't emit, but we still accept and skip on
+      # read for forward-compatibility with nng peers.
+      IPC_MSG_TYPE = 0x01
+
+
       # @return [Integer] peer's protocol id (set after handshake)
       attr_reader :peer_protocol
 
@@ -19,16 +26,27 @@ module Protocol
       # @return [Float, nil] monotonic timestamp of last received frame
       attr_reader :last_received_at
 
+      # @return [Symbol] :tcp or :ipc
+      attr_reader :framing
+
       # @param io [#read_exactly, #write, #flush, #close] transport IO
       # @param protocol [Integer] our protocol id (e.g. Protocols::PUSH_V0)
       # @param max_message_size [Integer, nil] max body size, nil = unlimited
-      def initialize(io, protocol:, max_message_size: nil)
+      # @param framing [Symbol] :tcp (default) uses 8-byte length headers;
+      #   :ipc prepends a 1-byte message-type marker to each frame
+      #   (nng's SP/IPC wire format)
+      def initialize(io, protocol:, max_message_size: nil, framing: :tcp)
         @io               = io
         @protocol         = protocol
         @peer_protocol    = nil
         @max_message_size = max_message_size
+        @framing          = framing
         @mutex            = Mutex.new
         @last_received_at = nil
+        # Reusable scratch buffer for frame headers — written into by
+        # Array#pack(buffer:), then flushed to @io. Capacity 9 covers
+        # both :tcp (8B) and :ipc (1+8B) framings.
+        @header_buf = String.new(capacity: 9, encoding: Encoding::BINARY)
       end
 
 
@@ -56,7 +74,7 @@ module Protocol
       # @return [void]
       def send_message(body)
         @mutex.synchronize do
-          @io.write([body.bytesize].pack("Q>"))
+          write_header_nolock(body.bytesize)
           @io.write(body)
           @io.flush
         end
@@ -74,9 +92,48 @@ module Protocol
       # @return [void]
       def write_message(body)
         @mutex.synchronize do
-          @io.write([body.bytesize].pack("Q>"))
+          write_header_nolock(body.bytesize)
           @io.write(body)
         end
+      end
+
+
+      # Writes a batch of messages to the buffer under a single mutex
+      # acquisition. Used by work-stealing send pumps that dequeue up
+      # to N messages at once — avoids N lock/unlock pairs per batch.
+      # Call {#flush} after to push the buffer to the socket.
+      #
+      # @param bodies [Array<String>]
+      # @return [void]
+      def write_messages(bodies)
+        @mutex.synchronize do
+          i = 0
+          n = bodies.size
+          while i < n
+            body = bodies[i]
+            write_header_nolock(body.bytesize)
+            @io.write(body)
+            i += 1
+          end
+        end
+      end
+
+
+      # Writes the frame header into the already-held @mutex. Hotpath:
+      # keep the branch monomorphic per-connection and avoid fresh pack
+      # allocations by packing into a per-connection scratch buffer.
+      #
+      # @param size [Integer] body size
+      # @return [void]
+      private def write_header_nolock(size)
+        buf = @header_buf
+        buf.clear
+        if @framing == :ipc
+          [IPC_MSG_TYPE, size].pack("CQ>", buffer: buf)
+        else
+          [size].pack("Q>", buffer: buf)
+        end
+        @io.write(buf)
       end
 
 
@@ -108,9 +165,26 @@ module Protocol
       #   they want, the freeze cost shows up in hot loops)
       # @raise [EOFError] if connection is closed
       def receive_message
-        frame = Codec::Frame.read_from(@io, max_message_size: @max_message_size)
-        touch_heartbeat
-        frame.body
+        if @framing == :ipc
+          loop do
+            # One read_exactly(9) is cheaper than separate 1+8 reads:
+            # halves the io-stream dispatch overhead per message.
+            header     = @io.read_exactly(9)
+            type, size = header.unpack("CQ>")
+            if @max_message_size && size > @max_message_size
+              raise Error, "frame size #{size} exceeds max_message_size #{@max_message_size}"
+            end
+            body = size > 0 ? @io.read_exactly(size) : "".b
+            touch_heartbeat
+            # Skip nng IPC control frames (0x00 — keepalive/etc.); only
+            # deliver user messages (0x01) to the caller.
+            return body if type == IPC_MSG_TYPE
+          end
+        else
+          frame = Codec::Frame.read_from(@io, max_message_size: @max_message_size)
+          touch_heartbeat
+          frame.body
+        end
       rescue Error
         close
         raise
