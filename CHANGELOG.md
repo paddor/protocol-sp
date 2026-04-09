@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — 2026-04-09
+
+- `Protocol::SP::Protocols::VALID_PEERS` is now deep-frozen (each inner
+  peer list is individually `.freeze`'d, matching how protocol-zmtp
+  handles `VALID_PEERS`). This makes the constant Ractor-shareable so
+  NNQ sockets can complete handshakes inside non-main Ractors.
+
 ## 0.1.0 — 2026-04-09
 
 Initial release.

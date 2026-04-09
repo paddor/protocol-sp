@@ -29,17 +29,17 @@ module Protocol
 
       # Compatibility table: which peer ID is acceptable for each self ID.
       VALID_PEERS = {
-        PAIR_V0       => [PAIR_V0],
-        PAIR_V1       => [PAIR_V1],
-        PUB_V0        => [SUB_V0],
-        SUB_V0        => [PUB_V0],
-        REQ_V0        => [REP_V0],
-        REP_V0        => [REQ_V0],
-        PUSH_V0       => [PULL_V0],
-        PULL_V0       => [PUSH_V0],
-        SURVEYOR_V0   => [RESPONDENT_V0],
-        RESPONDENT_V0 => [SURVEYOR_V0],
-        BUS_V0        => [BUS_V0],
+        PAIR_V0       => [PAIR_V0].freeze,
+        PAIR_V1       => [PAIR_V1].freeze,
+        PUB_V0        => [SUB_V0].freeze,
+        SUB_V0        => [PUB_V0].freeze,
+        REQ_V0        => [REP_V0].freeze,
+        REP_V0        => [REQ_V0].freeze,
+        PUSH_V0       => [PULL_V0].freeze,
+        PULL_V0       => [PUSH_V0].freeze,
+        SURVEYOR_V0   => [RESPONDENT_V0].freeze,
+        RESPONDENT_V0 => [SURVEYOR_V0].freeze,
+        BUS_V0        => [BUS_V0].freeze,
       }.freeze
 
 
