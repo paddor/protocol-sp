@@ -73,10 +73,12 @@ module Protocol
       # @param body [String] message body (single frame)
       # @return [void]
       def send_message(body)
-        @mutex.synchronize do
-          write_header_nolock(body.bytesize)
-          @io.write(body)
-          @io.flush
+        with_deferred_cancel do
+          @mutex.synchronize do
+            write_header_nolock(body.bytesize)
+            @io.write(body)
+            @io.flush
+          end
         end
       end
 
@@ -91,9 +93,11 @@ module Protocol
       # @param body [String]
       # @return [void]
       def write_message(body)
-        @mutex.synchronize do
-          write_header_nolock(body.bytesize)
-          @io.write(body)
+        with_deferred_cancel do
+          @mutex.synchronize do
+            write_header_nolock(body.bytesize)
+            @io.write(body)
+          end
         end
       end
 
@@ -106,14 +110,16 @@ module Protocol
       # @param bodies [Array<String>]
       # @return [void]
       def write_messages(bodies)
-        @mutex.synchronize do
-          i = 0
-          n = bodies.size
-          while i < n
-            body = bodies[i]
-            write_header_nolock(body.bytesize)
-            @io.write(body)
-            i += 1
+        with_deferred_cancel do
+          @mutex.synchronize do
+            i = 0
+            n = bodies.size
+            while i < n
+              body = bodies[i]
+              write_header_nolock(body.bytesize)
+              @io.write(body)
+              i += 1
+            end
           end
         end
       end
@@ -143,8 +149,10 @@ module Protocol
       # @param wire_bytes [String]
       # @return [void]
       def write_wire(wire_bytes)
-        @mutex.synchronize do
-          @io.write(wire_bytes)
+        with_deferred_cancel do
+          @mutex.synchronize do
+            @io.write(wire_bytes)
+          end
         end
       end
 
@@ -216,6 +224,24 @@ module Protocol
         @io.close
       rescue IOError
         # already closed
+      end
+
+
+      private
+
+      # Defers task cancellation around a block of wire writes so the
+      # peer never sees a half-written frame. Without this, an
+      # +Async::Cancel+ arriving between the header write and the body
+      # write would desync the peer's framer unrecoverably.
+      #
+      # When called outside an Async task (test fixtures, blocking
+      # callers), the block runs directly — there is no task to defer on.
+      def with_deferred_cancel
+        if defined?(Async::Task) && (task = Async::Task.current?)
+          task.defer_cancel { yield }
+        else
+          yield
+        end
       end
     end
   end

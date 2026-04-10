@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Cancellation-safe wire writes: `send_message`, `write_message`,
+  `write_messages`, and `write_wire` now wrap their mutex blocks in
+  `Async::Task#defer_cancel`. Prevents frame header/body desync when
+  `Async::Cancel` arrives between the header write and the body write
+  (e.g. from a barrier cascade teardown).
+
 ## 0.1.1 — 2026-04-09
 
 - `Protocol::SP::Protocols::VALID_PEERS` is now deep-frozen (each inner
