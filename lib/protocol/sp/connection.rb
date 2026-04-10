@@ -182,7 +182,7 @@ module Protocol
             if @max_message_size && size > @max_message_size
               raise Error, "frame size #{size} exceeds max_message_size #{@max_message_size}"
             end
-            body = size > 0 ? @io.read_exactly(size) : "".b
+            body = size > 0 ? @io.read_exactly(size) : Codec::Frame::EMPTY_BODY
             touch_heartbeat
             # Skip nng IPC control frames (0x00 — keepalive/etc.); only
             # deliver user messages (0x01) to the caller.

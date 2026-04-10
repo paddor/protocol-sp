@@ -14,6 +14,7 @@ module Protocol
       #
       class Frame
         HEADER_SIZE = 8
+        EMPTY_BODY  = "".b.freeze
 
 
         # @return [String] frame body (binary)
@@ -21,7 +22,7 @@ module Protocol
 
         # @param body [String] frame body
         def initialize(body)
-          @body = body.b
+          @body = body.encoding == Encoding::BINARY ? body : body.b
         end
 
 
@@ -29,7 +30,7 @@ module Protocol
         #
         # @return [String] binary wire representation (length + body)
         def to_wire
-          [@body.bytesize].pack("Q>") + @body
+          [@body.bytesize].pack("Q>") << @body
         end
 
 
@@ -38,7 +39,8 @@ module Protocol
         # @param body [String]
         # @return [String] frozen binary wire representation
         def self.encode(body)
-          ([body.bytesize].pack("Q>") + body.b).freeze
+          body = body.encoding == Encoding::BINARY ? body : body.b
+          ([body.bytesize].pack("Q>") << body).freeze
         end
 
 
@@ -56,7 +58,7 @@ module Protocol
             raise Error, "frame size #{size} exceeds max_message_size #{max_message_size}"
           end
 
-          body = size > 0 ? io.read_exactly(size) : "".b
+          body = size > 0 ? io.read_exactly(size) : EMPTY_BODY
           new(body)
         end
       end
