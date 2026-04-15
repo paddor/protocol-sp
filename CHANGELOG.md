@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-04-15
 
 - Cancellation-safe wire writes: `send_message`, `write_message`,
   `write_messages`, and `write_wire` now wrap their mutex blocks in
