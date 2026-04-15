@@ -59,6 +59,46 @@ module Protocol
       end
 
 
+      def test_send_message_with_header
+        a, b   = stream_pair
+        push   = Connection.new(a, protocol: Protocols::PUSH_V0)
+        pull   = Connection.new(b, protocol: Protocols::PULL_V0)
+
+        t = Thread.new { pull.handshake! }
+        push.handshake!
+        t.join
+
+        push.send_message("body", header: "HDR:")
+        assert_equal "HDR:body", pull.receive_message
+
+        # Empty body with header only
+        push.send_message("", header: "just-header")
+        assert_equal "just-header", pull.receive_message
+
+        # nil header behaves like the unary form
+        push.send_message("plain", header: nil)
+        assert_equal "plain", pull.receive_message
+      end
+
+
+      def test_write_message_with_header_round_trip
+        a, b   = stream_pair
+        push   = Connection.new(a, protocol: Protocols::PUSH_V0)
+        pull   = Connection.new(b, protocol: Protocols::PULL_V0)
+
+        t = Thread.new { pull.handshake! }
+        push.handshake!
+        t.join
+
+        push.write_message("one", header: "H1:")
+        push.write_message("two", header: "H2:")
+        push.flush
+
+        assert_equal "H1:one", pull.receive_message
+        assert_equal "H2:two", pull.receive_message
+      end
+
+
       def test_max_message_size_enforced
         a, b   = stream_pair
         push   = Connection.new(a, protocol: Protocols::PUSH_V0)

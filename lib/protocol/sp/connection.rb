@@ -75,12 +75,23 @@ module Protocol
 
       # Sends one message (write + flush).
       #
+      # The optional +header+ is a binary prefix written between the SP
+      # length prefix and +body+ on the wire, framed as a single message
+      # of size `header.bytesize + body.bytesize`. It's treated as an
+      # opaque slice so callers can pass a frozen shared buffer (e.g. a
+      # cached backtrace) without allocating a concatenated String.
+      # Receivers frame normally and get the header+body glued back
+      # together — this is purely a send-side allocation optimization.
+      #
       # @param body [String] message body (single frame)
+      # @param header [String, nil] optional binary prefix
       # @return [void]
-      def send_message(body)
+      def send_message(body, header: nil)
         with_deferred_cancel do
           @mutex.synchronize do
-            write_header_nolock(body.bytesize)
+            total = body.bytesize + (header ? header.bytesize : 0)
+            write_header_nolock(total)
+            @io.write(header) if header
             @io.write(body)
             @io.flush
           end
@@ -93,14 +104,19 @@ module Protocol
       #
       # Two writes — header then body — into the buffered IO; avoids
       # the per-message intermediate String allocation that
-      # {Codec::Frame.encode} would otherwise produce.
+      # {Codec::Frame.encode} would otherwise produce. When +header+ is
+      # supplied, this becomes three buffered writes coalesced by
+      # `IO::Stream::Buffered` into a single `writev`.
       #
       # @param body [String]
+      # @param header [String, nil] optional binary prefix
       # @return [void]
-      def write_message(body)
+      def write_message(body, header: nil)
         with_deferred_cancel do
           @mutex.synchronize do
-            write_header_nolock(body.bytesize)
+            total = body.bytesize + (header ? header.bytesize : 0)
+            write_header_nolock(total)
+            @io.write(header) if header
             @io.write(body)
           end
         end

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-04-15
+
+- `Connection#send_message` and `#write_message` grow an optional
+  `header:` kwarg. When supplied, the header bytes are written between
+  the SP length prefix and the body as a third buffered write, coalesced
+  by `IO::Stream::Buffered` into a single `writev`. Senders can now skip
+  the `header + body` String allocation that every prefix-style send path
+  (REQ/REP/SURVEYOR/RESPONDENT backtrace word) used to require. Receivers
+  frame normally and see the header+body concatenated — this is purely
+  a send-side allocation optimization with no wire-format change.
+
 ## 0.2.0 — 2026-04-15
 
 - Cancellation-safe wire writes: `send_message`, `write_message`,
