@@ -48,6 +48,7 @@ module Protocol
 
           data.byteslice(4, 2).unpack1("n")
         end
+
       end
     end
   end

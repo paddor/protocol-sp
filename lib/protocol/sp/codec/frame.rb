@@ -20,6 +20,7 @@ module Protocol
         # @return [String] frame body (binary)
         attr_reader :body
 
+
         # @param body [String] frame body
         def initialize(body)
           @body = body.encoding == Encoding::BINARY ? body : body.b
@@ -61,6 +62,7 @@ module Protocol
           body = size > 0 ? io.read_exactly(size) : EMPTY_BODY
           new(body)
         end
+
       end
     end
   end
