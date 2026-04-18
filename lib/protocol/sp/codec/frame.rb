@@ -31,7 +31,10 @@ module Protocol
         #
         # @return [String] binary wire representation (length + body)
         def to_wire
-          [@body.bytesize].pack("Q>") << @body
+          size = @body.bytesize
+          buf  = String.new(capacity: HEADER_SIZE + size, encoding: Encoding::BINARY)
+          [size].pack("Q>", buffer: buf)
+          buf << @body
         end
 
 
@@ -40,8 +43,11 @@ module Protocol
         # @param body [String]
         # @return [String] frozen binary wire representation
         def self.encode(body)
-          body = body.encoding == Encoding::BINARY ? body : body.b
-          ([body.bytesize].pack("Q>") << body).freeze
+          body = body.b unless body.encoding == Encoding::BINARY
+          size = body.bytesize
+          buf  = String.new(capacity: HEADER_SIZE + size, encoding: Encoding::BINARY)
+          [size].pack("Q>", buffer: buf)
+          (buf << body).freeze
         end
 
 
