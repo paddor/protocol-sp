@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-04-18
+
+- style
+
 ## 0.3.0 — 2026-04-15
 
 - `Connection#send_message` and `#write_message` grow an optional
