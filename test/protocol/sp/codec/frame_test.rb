@@ -12,9 +12,9 @@ module Protocol
         end
 
 
-        def test_encode_class_method_freezes
+        def test_encode_class_method_returns_wire_bytes
           wire = Frame.encode("x")
-          assert wire.frozen?
+          assert_equal Encoding::BINARY, wire.encoding
           assert_equal 9, wire.bytesize
         end
 

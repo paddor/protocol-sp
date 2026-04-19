@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — 2026-04-18
+
+- **`Frame.encode` no longer freezes its return value.** Matches
+  `protocol-zmtp`'s `Frame#to_wire` policy: callers that need a
+  stable buffer can freeze it themselves, and the hot fan-out path
+  doesn't pay for a freeze on every encoded wire String.
+
 ## 0.3.1 — 2026-04-18
 
 - style
